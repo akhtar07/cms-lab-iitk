@@ -73,10 +73,16 @@ instead — see `supabase/functions/_shared/llm.ts`.
 1. Create a free project at <https://supabase.com>. Note the **Project URL** and
    **anon key** (Settings → API).
 2. SQL editor → run `supabase/migrations/0001_init.sql`, then `0002_projects.sql`,
-   then `0003_agent.sql`, in that order.
-3. **Set the PI's email** so the PI is auto-activated on first sign-in:
+   then `0003_agent.sql`, then `0004_pi_aliases.sql`, in that order.
+3. **Set the PI's email** so the PI is auto-activated on first sign-in. If the
+   PI signs in from more than one Google account, list the extras in
+   `pi_alt_emails` — all of them get PI access, while `pi_email` stays the
+   single booking host and calendar owner:
    ```sql
-   update lab_settings set pi_email = 'bsomnath@iitk.ac.in' where id = 1;
+   update lab_settings
+      set pi_email      = 'bsomnath@iitk.ac.in',
+          pi_alt_emails = array['somnath.bhowmick@gmail.com']
+    where id = 1;
    ```
 4. Authentication → Providers → **Google**: enable it (you'll paste the client
    ID/secret from step 2). Copy the **Callback URL** shown there.

@@ -5,12 +5,14 @@ const CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID")!;
 const CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET")!;
 
 export async function accessTokenForPi(): Promise<{ token: string; calendarId: string; piId: string }> {
-  const { data: pi } = await admin
-    .from("profiles").select("id").eq("role", "pi").eq("status", "active").limit(1).single();
-  if (!pi) throw new Error("No active PI");
+  // pi_id() is the single source of truth for "which PI" — with more than one
+  // PI account, picking a different row here than the database does would put
+  // events on the wrong calendar.
+  const { data: piId } = await admin.rpc("pi_id");
+  if (!piId) throw new Error("No active PI");
 
   const { data: tok } = await admin
-    .from("google_tokens").select("refresh_token, calendar_id").eq("profile_id", pi.id).single();
+    .from("google_tokens").select("refresh_token, calendar_id").eq("profile_id", piId).single();
   if (!tok) throw new Error("PI has not connected Google Calendar yet");
 
   const res = await fetch("https://oauth2.googleapis.com/token", {
@@ -25,7 +27,7 @@ export async function accessTokenForPi(): Promise<{ token: string; calendarId: s
   });
   const body = await res.json();
   if (!res.ok) throw new Error(`Google token refresh failed: ${body.error_description ?? body.error}`);
-  return { token: body.access_token, calendarId: tok.calendar_id, piId: pi.id };
+  return { token: body.access_token, calendarId: tok.calendar_id, piId };
 }
 
 export async function gcal(token: string, path: string, init: RequestInit = {}) {
