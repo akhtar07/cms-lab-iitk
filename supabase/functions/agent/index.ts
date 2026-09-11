@@ -10,7 +10,11 @@ import { corsHeaders, json } from "../_shared/cors.ts";
 import { admin, getCaller, type Caller } from "../_shared/supabase.ts";
 import { chat, parseJson } from "../_shared/llm.ts";
 
-const SYSTEM = `You are the research assistant of a computational materials science group (DFT, phonons, 2D materials, defects, ML potentials). Be concrete and terse. Use the lab's own records given to you; never invent results, dates or people. Write in plain Markdown with short headings and bullets. Dates are in the lab timezone (IST).`;
+const SYSTEM = `You are the research assistant of a computational materials science group. Be concrete and terse.
+
+HARD RULE: every name, project, number, date and result you write must appear verbatim in the records given to you. You have no other knowledge of this lab. If the records are empty or do not cover something, say exactly that in one line and stop — never fill a gap with a plausible example, a placeholder person ("Member 1"), or a typical materials-science result. An empty section is correct output; an invented one is a serious error.
+
+Write in plain Markdown with short headings and bullets. Dates are in the lab timezone (IST).`;
 
 const day = (d: string | Date | null | undefined) => d ? new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" }) : "—";
 
@@ -82,7 +86,7 @@ async function brief(caller: Caller, meetingId: string) {
 Meeting: ${day(m.start_at)} · ${m.type} · agenda: "${m.agenda}"
 Student: ${m.requester.full_name ?? m.requester.email} (${m.requester.role})
 
-Their records:
+Their records (the only thing you know about them):
 ${ctx}
 
 Write: (1) where they are (2 lines), (2) what was decided last time and whether it got done, (3) overdue or blocked items, (4) 3 sharp questions the PI should ask. Under 200 words.`,
@@ -128,11 +132,17 @@ Return JSON: {"summary": string (≤80 words), "decisions": string[] (concrete d
 
 async function digest() {
   const people = await profileMap();
+  const members = [...people.values()].filter((p) => p.role !== "pi");
+  if (members.length === 0) {
+    const { data } = await admin.from("digests").insert({ kind: "weekly", content: `# State of the lab — ${day(new Date())}\n\nNo approved members yet, so there is nothing to report. Approve members in Admin and the digest will fill up as projects, meetings and weekly updates arrive.` }).select().single();
+    return { digest: data, empty: true };
+  }
   const ctx = await labContext(people);
   const text = await chat({
     system: SYSTEM,
-    user: `Write the weekly "state of the lab" digest for the PI, dated ${day(new Date())}.
+    user: `Write the weekly "state of the lab" digest for the PI, dated ${day(new Date())}. Every person, project and result you mention must come from the records below — if a section has nothing behind it, write "nothing recorded" under that heading.
 
+RECORDS:
 ${ctx}
 
 Structure: **Needs attention** (people with overdue items, blockers, no weekly update, stale projects — name names), **Progress this week** (one line per person), **Papers pipeline** (submitted/review/revision with dates), **Suggested follow-ups** (3–5 bullets). Under 450 words.`,
@@ -154,7 +164,7 @@ async function ask(caller: Caller, question: string, projectId?: string) {
 
   const text = await chat({
     system: SYSTEM + (caller.role === "pi" ? "" : " You are talking to a student; only their own projects are visible to you."),
-    user: `Lab records:\n${ctx}\n\nToday is ${day(new Date())}. Question from ${name(people, caller.id)}: ${question}\n\nAnswer from the records above. If the records don't say, say so.`,
+    user: `RECORDS:\n${ctx || "(none)"}\n\nToday is ${day(new Date())}. Question from ${name(people, caller.id)}: ${question}\n\nAnswer only from the records above. If they don't contain the answer, reply "The lab records don't cover that" and, if useful, name what is missing.`,
   });
   await admin.from("agent_queries").insert({ asked_by: caller.id, question, answer: text });
   return { answer: text };
