@@ -15,27 +15,34 @@ on:
         type: boolean
         default: false
 
+# The `secrets` context is not available in `if:` conditions, so it is read
+# through `env` instead.
+env:
+  SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+  ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+  CRON_SECRET: ${{ secrets.CRON_SECRET }}
+
 jobs:
   maintain:
     runs-on: ubuntu-latest
     steps:
       - name: Keep-alive ping
         run: |
-          curl -sf "${{ vars.NEXT_PUBLIC_SUPABASE_URL }}/rest/v1/lab_settings?select=id" \
-            -H "apikey: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" > /dev/null && echo "Supabase awake"
+          curl -sf "$SUPABASE_URL/rest/v1/lab_settings?select=id" -H "apikey: $ANON_KEY" > /dev/null
+          echo "Supabase awake"
       - name: Sync PI busy times
-        if: ${{ secrets.CRON_SECRET != '' }}
+        if: env.CRON_SECRET != ''
         run: |
-          curl -sf -X POST "${{ vars.NEXT_PUBLIC_SUPABASE_URL }}/functions/v1/calendar-sync" \
-            -H "apikey: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" \
-            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+          curl -sf -X POST "$SUPABASE_URL/functions/v1/calendar-sync" \
+            -H "apikey: $ANON_KEY" \
+            -H "x-cron-secret: $CRON_SECRET" \
             -H "Content-Type: application/json" \
             -d '{"action":"sync_busy","days":28}'
       - name: Weekly digest
-        if: ${{ secrets.CRON_SECRET != '' && (github.event.schedule == '30 12 * * 5' || inputs.digest) }}
+        if: env.CRON_SECRET != '' && (github.event.schedule == '30 12 * * 5' || inputs.digest)
         run: |
-          curl -sf -X POST "${{ vars.NEXT_PUBLIC_SUPABASE_URL }}/functions/v1/agent" \
-            -H "apikey: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" \
-            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+          curl -sf -X POST "$SUPABASE_URL/functions/v1/agent" \
+            -H "apikey: $ANON_KEY" \
+            -H "x-cron-secret: $CRON_SECRET" \
             -H "Content-Type: application/json" \
             -d '{"action":"digest"}' || echo "Digest skipped (no AI key configured yet)"
