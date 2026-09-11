@@ -76,7 +76,7 @@ instead — see `supabase/functions/_shared/llm.ts`.
    then `0003_agent.sql`, in that order.
 3. **Set the PI's email** so the PI is auto-activated on first sign-in:
    ```sql
-   update lab_settings set pi_email = 'somnath@iitk.ac.in' where id = 1;
+   update lab_settings set pi_email = 'bsomnath@iitk.ac.in' where id = 1;
    ```
 4. Authentication → Providers → **Google**: enable it (you'll paste the client
    ID/secret from step 2). Copy the **Callback URL** shown there.
