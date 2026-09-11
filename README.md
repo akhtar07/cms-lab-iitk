@@ -1,5 +1,7 @@
 # CMS Lab Portal
 
+Live at <https://akhtar07.github.io/cms-lab-iitk/>
+
 Lab management for Prof. Somnath Bhowmick's Computational Materials Science group:
 member approval, PI office-hour booking with locked slots, automatic Google
 Calendar events + Meet links, project and paper tracking, meeting notes that
@@ -132,6 +134,8 @@ Admin → **Lab assistant** shows whether the key is live.
    - **Variables**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - **Secrets**: `CRON_SECRET` (same value as above; enables automatic busy-time sync)
 3. Push to `main` → the site deploys to `https://<user>.github.io/<repo>/`.
+4. Supabase → Authentication → URL Configuration: set **Site URL** to the Pages
+   URL and keep `https://<user>.github.io/**` in the redirect allow-list.
 
 ### 5. First run
 
