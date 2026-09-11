@@ -1,0 +1,41 @@
+# Three free cron jobs:
+#  1. Keep the Supabase free-tier project from pausing (it pauses after 7 idle days).
+#  2. Pull the PI's Google Calendar busy times into the booking grid.
+#  3. Friday evening: generate the lab assistant's weekly digest for the PI.
+name: Scheduled maintenance
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"   # every 6 hours
+    - cron: "30 12 * * 5"    # Friday 18:00 IST
+  workflow_dispatch:
+    inputs:
+      digest:
+        description: "Also generate the weekly digest"
+        type: boolean
+        default: false
+
+jobs:
+  maintain:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Keep-alive ping
+        run: |
+          curl -sf "${{ vars.NEXT_PUBLIC_SUPABASE_URL }}/rest/v1/lab_settings?select=id" \
+            -H "apikey: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" > /dev/null && echo "Supabase awake"
+      - name: Sync PI busy times
+        if: ${{ secrets.CRON_SECRET != '' }}
+        run: |
+          curl -sf -X POST "${{ vars.NEXT_PUBLIC_SUPABASE_URL }}/functions/v1/calendar-sync" \
+            -H "apikey: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"action":"sync_busy","days":28}'
+      - name: Weekly digest
+        if: ${{ secrets.CRON_SECRET != '' && (github.event.schedule == '30 12 * * 5' || inputs.digest) }}
+        run: |
+          curl -sf -X POST "${{ vars.NEXT_PUBLIC_SUPABASE_URL }}/functions/v1/agent" \
+            -H "apikey: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"action":"digest"}' || echo "Digest skipped (no AI key configured yet)"

@@ -1,0 +1,5 @@
+# Supabase CLI config. Project ref is set via `supabase link`.
+[functions.google-connect]
+verify_jwt = false
+[functions.calendar-sync]
+verify_jwt = false
