@@ -9,8 +9,8 @@ import { Button, Card, EmptyState, Field, Modal, PageHeader, Segmented, Select, 
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { callFn, announceSlotsChanged, SLOTS_CHANNEL } from "@/lib/functions";
-import { buildWeekSlots, type Slot } from "@/lib/slots";
-import { fmtDate, fmtRange, fmtTime, fmtWeekday, isSameLabDay, labParts, labStartOfWeek } from "@/lib/format";
+import { buildWeekSlots, nextFreeSlot, type Slot } from "@/lib/slots";
+import { fmtDate, fmtDateTime, fmtRange, fmtTime, fmtWeekday, isSameLabDay, labParts, labStartOfWeek } from "@/lib/format";
 import { TYPE_LABEL, type AvailabilityBlock, type AvailabilityRule, type BusyRange, type MeetingMode, type MeetingType, type Project } from "@/lib/types";
 import { ProjectSelect } from "@/components/research";
 
@@ -31,6 +31,7 @@ function Book() {
   const [busy, setBusy] = useState<BusyRange[]>([]);
   const [loading, setLoading] = useState(true);
   const [picked, setPicked] = useState<Slot | null>(null);
+  const [jumped, setJumped] = useState(false);
 
   const load = useCallback(async () => {
     const sb = supabase();
@@ -62,6 +63,20 @@ function Book() {
     [weekStart, rules, blocks, busy, settings],
   );
   const anyRules = rules.length > 0 || blocks.some((b) => b.kind === "open");
+  const freeThisWeek = days.some((d) => d.some((s) => s.state === "free"));
+  // Office hours on one weekday mean the current week is often entirely past
+  // or inside the notice period. Landing on an empty grid reads as "broken",
+  // so open on the first week that actually has something free.
+  const nextFree = useMemo(
+    () => settings && anyRules ? nextFreeSlot(rules, blocks, settings) : null,
+    [rules, blocks, settings, anyRules],
+  );
+  useEffect(() => {
+    if (jumped || loading || freeThisWeek || !nextFree) return;
+    setJumped(true);
+    const target = labStartOfWeek(nextFree);
+    if (target.getTime() !== weekStart.getTime()) setWeekStart(target);
+  }, [jumped, loading, freeThisWeek, nextFree, weekStart]);
   const now = new Date();
   const wp = labParts(weekStart);
   const weekEnd = new Date(weekStart.getTime() + 6 * 86400_000);
@@ -82,6 +97,20 @@ function Book() {
           </div>
         }
       />
+
+      {!loading && anyRules && !freeThisWeek && (
+        <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 p-4">
+          <div className="flex items-center gap-3 text-sm">
+            <CalendarX2 className="h-4 w-4 shrink-0 text-muted" />
+            <span>{nextFree
+              ? <>Nothing free this week. The next open slot is <strong>{fmtDateTime(nextFree)}</strong>.</>
+              : <>No open slots left in the booking window. Ask the PI to add office hours.</>}</span>
+          </div>
+          {nextFree && labStartOfWeek(nextFree).getTime() !== weekStart.getTime() && (
+            <Button size="sm" onClick={() => setWeekStart(labStartOfWeek(nextFree))}>Go to that week</Button>
+          )}
+        </Card>
+      )}
 
       {loading ? <Spinner /> : !anyRules ? (
         <Card><EmptyState icon={<CalendarX2 className="h-8 w-8" />} title="No office hours published yet" body="The PI hasn't set availability. Check back soon or ask in the group." /></Card>

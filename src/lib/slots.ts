@@ -1,5 +1,5 @@
 import type { AvailabilityBlock, AvailabilityRule, BusyRange, LabSettings } from "./types";
-import { labDate, labParts, labWeekday } from "./format";
+import { labDate, labParts, labStartOfWeek, labWeekday } from "./format";
 
 export type SlotState = "free" | "busy" | "blocked" | "past" | "too_soon" | "too_far";
 
@@ -78,4 +78,26 @@ export function buildWeekSlots(
     days.push(slots);
   }
   return days;
+}
+
+/**
+ * The first slot a member could actually book, scanning to the end of the
+ * booking horizon. Busy times are only loaded for the week on screen, so a
+ * slot someone else has already taken can still be returned — the grid shows
+ * its true state once that week is displayed.
+ */
+export function nextFreeSlot(
+  rules: AvailabilityRule[],
+  blocks: AvailabilityBlock[],
+  settings: Pick<LabSettings, "min_notice_hours" | "booking_horizon_days">,
+  now = new Date(),
+): Date | null {
+  let weekStart = labStartOfWeek(now);
+  for (let w = 0; w <= Math.ceil(settings.booking_horizon_days / 7); w++) {
+    for (const day of buildWeekSlots(weekStart, rules, blocks, [], settings, now)) {
+      for (const slot of day) if (slot.state === "free") return slot.start;
+    }
+    weekStart = new Date(weekStart.getTime() + 7 * 86400_000);
+  }
+  return null;
 }
