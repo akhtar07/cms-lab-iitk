@@ -86,7 +86,14 @@ instead — see `supabase/functions/_shared/llm.ts`.
 
 1. <https://console.cloud.google.com> → new project → **Enable** "Google Calendar API".
 2. OAuth consent screen: External, add scopes `.../auth/calendar.events` and
-   `.../auth/calendar.readonly`, add the PI's Gmail as a test user (or publish).
+   `.../auth/calendar.readonly`.
+   **Publish the app** (Google Auth Platform → Audience → *Publish app*). While it
+   is in *Testing*, only listed test users can sign in at all — every student gets
+   `Error 403: access_denied` — and refresh tokens expire after 7 days, so the
+   calendar link silently breaks every week. Published-but-unverified is fine:
+   students see no warning (email/profile are non-sensitive scopes), and the PI
+   sees a one-time "Google hasn't verified this app" screen on the calendar
+   connect — *Advanced → Go to … (unsafe)* — because calendar scopes are sensitive.
 3. Credentials → OAuth client ID → Web application:
    - Authorized redirect URI: the Supabase callback URL from step 1.4.
 4. Paste the client ID / secret into Supabase's Google provider **and** into
@@ -112,6 +119,8 @@ Get a key at <https://aistudio.google.com/apikey>, then:
 ```bash
 supabase secrets set GEMINI_API_KEY=...
 ```
+
+Default model is `gemini-3.6-flash`; override with `LLM_MODEL`.
 
 Everything else works without it; only the assistant features go quiet.
 Admin → **Lab assistant** shows whether the key is live.
